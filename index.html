@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab: controlador fuzzy de irrigação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: caderno de laboratório — trilha de passos fixa à esquerda, roteiro de leitura à direita */
+:root {
+  --bg: #F3F5F2;
+  --surface: #FFFFFF;
+  --ink: #16212A;
+  --muted: #55626C;
+  --line: #D9DFDA;
+  --water: #1B66A8;
+  --water-soft: #E3EEF8;
+  --leaf: #2C7A4B;
+  --leaf-soft: #E2F1E7;
+  --code-bg: #0F1A23;
+  --code-ink: #E2EAF0;
+  --code-dim: #8DA3B4;
+  --warn-soft: #FBF1DC;
+  --warn: #8A5A06;
+  --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --f-body: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  --f-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10171D; --surface: #172129; --ink: #E6ECEF; --muted: #9AA8B2; --line: #2A3842;
+    --water: #6FB0EA; --water-soft: #16304A; --leaf: #6CC793; --leaf-soft: #173525;
+    --code-bg: #0A1117; --code-ink: #E2EAF0; --code-dim: #7F95A6; --warn-soft: #3A2C10; --warn: #F0C66B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10171D; --surface: #172129; --ink: #E6ECEF; --muted: #9AA8B2; --line: #2A3842;
+  --water: #6FB0EA; --water-soft: #16304A; --leaf: #6CC793; --leaf-soft: #173525;
+  --code-bg: #0A1117; --code-ink: #E2EAF0; --code-dim: #7F95A6; --warn-soft: #3A2C10; --warn: #F0C66B;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 400 17px/1.65 var(--f-body); }
+a { color: var(--water); }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 800; letter-spacing: -0.5px; }
+h2 { font-size: 26px; font-weight: 700; }
+h3 { font-size: 18px; font-weight: 700; }
+p { margin: 0; }
+code { font-family: var(--f-mono); font-size: 0.9em; background: var(--water-soft); padding: 1px 6px; border-radius: 4px; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 48px; }
+header.top { max-width: 1180px; margin: 0 auto; padding: 40px 20px 32px; display: flex; flex-direction: column; gap: 16px; }
+.kicker { font: 600 13px/1 var(--f-mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--leaf); }
+.lede { max-width: 66ch; color: var(--muted); font-size: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 13px/1 var(--f-mono); border: 1px solid var(--line); background: var(--surface); padding: 7px 10px; border-radius: 999px; color: var(--muted); }
+
+nav.trail { position: sticky; top: 20px; align-self: start; display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+.progress { display: flex; flex-direction: column; gap: 8px; }
+.progress-label { font: 500 13px/1 var(--f-mono); color: var(--muted); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--leaf); transition: width .3s; }
+nav.trail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+nav.trail a { display: flex; gap: 10px; align-items: center; text-decoration: none; color: var(--muted); font-size: 15px; padding: 6px 8px; border-radius: 6px; }
+nav.trail a:hover, nav.trail a:focus-visible { background: var(--surface); color: var(--ink); outline: none; }
+nav.trail .n { font: 500 12px/1 var(--f-mono); width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--surface); }
+nav.trail a.done .n { background: var(--leaf); border-color: var(--leaf); color: var(--surface); }
+nav.trail a.done { color: var(--ink); }
+
+main { display: flex; flex-direction: column; gap: 28px; padding-bottom: 80px; min-width: 0; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 20px; }
+.step-head { display: flex; gap: 14px; align-items: baseline; }
+.step-num { font: 600 13px/1 var(--f-mono); color: var(--water); letter-spacing: 1px; flex: none; }
+.step > p, .step li { max-width: 68ch; }
+.step ul, .step ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+
+.code { position: relative; background: var(--code-bg); border-radius: 10px; overflow: hidden; }
+.code-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px 8px 16px; border-bottom: 1px solid #22313D; }
+.code-lang { font: 500 12px/1 var(--f-mono); color: var(--code-dim); letter-spacing: 1px; text-transform: uppercase; }
+.copy { font: 500 13px/1 var(--f-body); color: var(--code-ink); background: #1E2E3B; border: 1px solid #2E4253; border-radius: 6px; padding: 7px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.copy:hover { background: #28404F; }
+.copy:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+.copy.ok { background: #1F5A3A; border-color: #2C7A4B; }
+pre { margin: 0; padding: 16px; overflow-x: auto; font: 400 14px/1.6 var(--f-mono); color: var(--code-ink); tab-size: 4; }
+pre .c { color: var(--code-dim); }
+
+.note { border-radius: 10px; padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; font-size: 16px; }
+.note b { font-family: var(--f-display); font-size: 14px; letter-spacing: .5px; text-transform: uppercase; }
+.note.expect { background: var(--leaf-soft); }
+.note.expect b { color: var(--leaf); }
+.note.tip { background: var(--water-soft); }
+.note.tip b { color: var(--water); }
+.note.warn { background: var(--warn-soft); }
+.note.warn b { color: var(--warn); }
+
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
+td.r, th.r { text-align: right; }
+.mx td { text-align: center; font-weight: 500; }
+.mx td:first-child { text-align: left; font-weight: 600; }
+.t0 { background: var(--bg); color: var(--muted); }
+.t1 { background: var(--water-soft); }
+.t2 { background: color-mix(in srgb, var(--water) 30%, var(--surface)); }
+.t3 { background: color-mix(in srgb, var(--water) 50%, var(--surface)); }
+.t4 { background: var(--water); color: var(--surface); }
+
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.flow div { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); display: flex; flex-direction: column; gap: 4px; }
+.flow .k { font: 600 12px/1 var(--f-mono); color: var(--water); }
+.flow .d { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.done-row { display: flex; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 14px; }
+.done-row input { width: 18px; height: 18px; accent-color: var(--leaf); }
+.done-row label { font-size: 15px; color: var(--muted); cursor: pointer; }
+
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  nav.trail { position: static; padding-bottom: 0; }
+  nav.trail ol { flex-direction: row; flex-wrap: wrap; }
+  nav.trail a .t { display: none; }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .step { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar span { transition: none; } html { scroll-behavior: auto; } }
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<header class="top">
+<p class="kicker">Laboratório prático · Lógica fuzzy</p>
+<h1>Lab: controlador fuzzy de irrigação</h1>
+<p class="lede">Você vai construir, em Python, um controlador que decide quantos minutos regar a partir da umidade do solo e da temperatura. No fim, terá testado cenários e desenhado a superfície de controle do sistema.</p>
+<div class="chips"><span class="chip">Python 3.9+</span><span class="chip">scikit-fuzzy</span><span class="chip">60 a 90 min</span><span class="chip">Método de Mamdani</span><span class="chip">11 passos</span></div>
+</header>
+
+<div class="wrap">
+<nav class="trail" aria-label="Passos do lab">
+<div class="progress"><span class="progress-label" id="plabel">0 de 11 passos concluídos</span><div class="bar"><span id="pbar"></span></div></div>
+<ol id="navlist">
+<li><a href="#p0"><span class="n">0</span><span class="t">O que vamos construir</span></a></li>
+<li><a href="#p1"><span class="n">1</span><span class="t">Preparar o ambiente</span></a></li>
+<li><a href="#p2"><span class="n">2</span><span class="t">Importar bibliotecas</span></a></li>
+<li><a href="#p3"><span class="n">3</span><span class="t">Criar as variáveis</span></a></li>
+<li><a href="#p4"><span class="n">4</span><span class="t">Funções de pertinência</span></a></li>
+<li><a href="#p5"><span class="n">5</span><span class="t">Visualizar as funções</span></a></li>
+<li><a href="#p6"><span class="n">6</span><span class="t">Escrever as regras</span></a></li>
+<li><a href="#p7"><span class="n">7</span><span class="t">Simular um caso</span></a></li>
+<li><a href="#p8"><span class="n">8</span><span class="t">Testar cenários</span></a></li>
+<li><a href="#p9"><span class="n">9</span><span class="t">Superfície de controle</span></a></li>
+<li><a href="#p10"><span class="n">10</span><span class="t">Script completo e desafios</span></a></li>
+</ol>
+</nav>
+
+<main>
+
+<section class="step" id="p0" data-step="0">
+<div class="step-head"><span class="step-num">PASSO 0</span><h2>O que vamos construir</h2></div>
+<p>Um controlador fuzzy do tipo Mamdani com duas entradas e uma saída. Ele segue as quatro etapas vistas em aula:</p>
+<div class="flow">
+<div><span class="k">1 · Fuzzificação</span><span class="d">umidade e temperatura viram graus de 0 a 1</span></div>
+<div><span class="k">2 · Regras</span><span class="d">9 regras SE–ENTÃO da matriz</span></div>
+<div><span class="k">3 · Inferência</span><span class="d">corte pelo mínimo e união pelo máximo</span></div>
+<div><span class="k">4 · Defuzzificação</span><span class="d">centroide vira minutos de rega</span></div>
+</div>
+<h3>Matriz de regras que vamos implementar</h3>
+<div class="tbl">
+<table class="mx">
+<tr><th>Umidade ↓ / Temperatura →</th><th style="text-align:center">Baixa</th><th style="text-align:center">Média</th><th style="text-align:center">Alta</th></tr>
+<tr><td>Seca</td><td class="t2">Médio</td><td class="t3">Longo</td><td class="t4">Muito longo</td></tr>
+<tr><td>Úmida</td><td class="t0">Nenhum</td><td class="t1">Curto</td><td class="t2">Médio</td></tr>
+<tr><td>Encharcada</td><td class="t0">Nenhum</td><td class="t0">Nenhum</td><td class="t0">Nenhum</td></tr>
+</table>
+</div>
+<p>Quanto mais escura a célula, maior o tempo de rega. A umidade define a linha, porque diz se a planta precisa de água. A temperatura ajusta, porque o calor aumenta a evaporação.</p>
+<div class="done-row"><input type="checkbox" id="c0"><label for="c0">Entendi o objetivo</label></div>
+</section>
+
+<section class="step" id="p1" data-step="1">
+<div class="step-head"><span class="step-num">PASSO 1</span><h2>Preparar o ambiente</h2></div>
+<p>A forma mais rápida é usar o <a href="https://colab.research.google.com/">Google Colab</a>: nada para instalar no computador. Crie um notebook novo e rode a célula abaixo.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Colab / Jupyter</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>!pip install scikit-fuzzy networkx</code></pre></div>
+<p>Se preferir rodar no seu computador, use o terminal:</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Terminal</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>pip install scikit-fuzzy networkx numpy matplotlib</code></pre></div>
+<div class="note tip"><b>Dica</b><p>O <code>networkx</code> é usado internamente pelo módulo de controle do scikit-fuzzy. Instalá-lo junto evita um erro de importação no passo 7.</p></div>
+<div class="done-row"><input type="checkbox" id="c1"><label for="c1">Bibliotecas instaladas</label></div>
+</section>
+
+<section class="step" id="p2" data-step="2">
+<div class="step-head"><span class="step-num">PASSO 2</span><h2>Importar as bibliotecas</h2></div>
+<p>O <code>numpy</code> cria os intervalos de valores, o <code>matplotlib</code> desenha os gráficos e o <code>skfuzzy</code> faz a lógica fuzzy.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl</code></pre></div>
+<div class="note expect"><b>Resultado esperado</b><p>A célula roda sem mensagens. Se aparecer <code>ModuleNotFoundError</code>, volte ao passo 1.</p></div>
+<div class="done-row"><input type="checkbox" id="c2"><label for="c2">Importações funcionando</label></div>
+</section>
+
+<section class="step" id="p3" data-step="3">
+<div class="step-head"><span class="step-num">PASSO 3</span><h2>Criar as variáveis</h2></div>
+<p>Entradas são <code>Antecedent</code> (o “SE” das regras) e a saída é <code>Consequent</code> (o “ENTÃO”). Cada uma recebe o seu universo de discurso: a faixa de valores possíveis.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code><span class="c"># Entradas (antecedentes)</span>
+umidade = ctrl.Antecedent(np.arange(0, 101, 1), 'umidade')          <span class="c"># % de umidade do solo</span>
+temperatura = ctrl.Antecedent(np.arange(0, 46, 1), 'temperatura')   <span class="c"># °C</span>
+
+<span class="c"># Saída (consequente): tempo de rega em minutos, de 0 a 30</span>
+tempo = ctrl.Consequent(np.linspace(0, 30, 301), 'tempo', defuzzify_method='centroid')</code></pre></div>
+<div class="note tip"><b>Por que linspace na saída?</b><p>Com 301 pontos o passo é de 0,1 min, o que deixa o centroide mais preciso. O ponto final 30 entra exato, sem erro de arredondamento.</p></div>
+<div class="done-row"><input type="checkbox" id="c3"><label for="c3">Variáveis criadas</label></div>
+</section>
+
+<section class="step" id="p4" data-step="4">
+<div class="step-head"><span class="step-num">PASSO 4</span><h2>Definir as funções de pertinência</h2></div>
+<p>Cada termo linguístico vira uma função. Use <code>trimf</code> para triângulos (3 pontos) e <code>trapmf</code> para trapézios (4 pontos). Os trapézios ficam nos extremos de cada faixa.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code><span class="c"># Umidade do solo (%)</span>
+umidade['seca']       = fuzz.trapmf(umidade.universe, [0, 0, 25, 40])
+umidade['umida']      = fuzz.trimf(umidade.universe, [30, 50, 70])
+umidade['encharcada'] = fuzz.trapmf(umidade.universe, [60, 75, 100, 100])
+
+<span class="c"># Temperatura (°C)</span>
+temperatura['baixa'] = fuzz.trapmf(temperatura.universe, [0, 0, 15, 22])
+temperatura['media'] = fuzz.trimf(temperatura.universe, [15, 25, 35])
+temperatura['alta']  = fuzz.trapmf(temperatura.universe, [28, 35, 45, 45])
+
+<span class="c"># Tempo de rega (min)</span>
+tempo['nenhum']      = fuzz.trapmf(tempo.universe, [0, 0, 2, 6])
+tempo['curto']       = fuzz.trimf(tempo.universe, [3, 8, 13])
+tempo['medio']       = fuzz.trimf(tempo.universe, [10, 15, 20])
+tempo['longo']       = fuzz.trimf(tempo.universe, [17, 22, 27])
+tempo['muito_longo'] = fuzz.trapmf(tempo.universe, [24, 28, 30, 30])</code></pre></div>
+<div class="note warn"><b>Atenção</b><p>Os termos vizinhos se sobrepõem de propósito (por exemplo, seca vai até 40% e úmida começa em 30%). Sem sobreposição, a saída volta a dar saltos, como na lógica clássica.</p></div>
+<div class="done-row"><input type="checkbox" id="c4"><label for="c4">Funções definidas</label></div>
+</section>
+
+<section class="step" id="p5" data-step="5">
+<div class="step-head"><span class="step-num">PASSO 5</span><h2>Visualizar as funções</h2></div>
+<p>Antes de seguir, confira se as curvas estão como planejado. O método <code>view()</code> desenha todos os termos de uma variável.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>umidade.view()
+temperatura.view()
+tempo.view()
+plt.show()</code></pre></div>
+<div class="note expect"><b>Resultado esperado</b><p>Três gráficos. Umidade e temperatura com 3 curvas sobrepostas cada; tempo com 5 curvas entre 0 e 30 minutos.</p></div>
+<div class="done-row"><input type="checkbox" id="c5"><label for="c5">Gráficos conferidos</label></div>
+</section>
+
+<section class="step" id="p6" data-step="6">
+<div class="step-head"><span class="step-num">PASSO 6</span><h2>Escrever as regras</h2></div>
+<p>Cada célula da matriz vira uma regra. O operador <code>&amp;</code> é o E fuzzy (mínimo) e <code>|</code> seria o OU (máximo). A linha “encharcada” tem a mesma conclusão nas três colunas, então pode virar uma única regra.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>regras = [
+    <span class="c"># Solo seco: precisa de água; quanto mais calor, mais tempo</span>
+    ctrl.Rule(umidade['seca'] &amp; temperatura['baixa'], tempo['medio']),
+    ctrl.Rule(umidade['seca'] &amp; temperatura['media'], tempo['longo']),
+    ctrl.Rule(umidade['seca'] &amp; temperatura['alta'],  tempo['muito_longo']),
+
+    <span class="c"># Solo úmido: só rega se estiver quente</span>
+    ctrl.Rule(umidade['umida'] &amp; temperatura['baixa'], tempo['nenhum']),
+    ctrl.Rule(umidade['umida'] &amp; temperatura['media'], tempo['curto']),
+    ctrl.Rule(umidade['umida'] &amp; temperatura['alta'],  tempo['medio']),
+
+    <span class="c"># Solo encharcado: nunca regar (vale para as 3 temperaturas)</span>
+    ctrl.Rule(umidade['encharcada'], tempo['nenhum']),
+]</code></pre></div>
+<div class="note tip"><b>Para pensar</b><p>As 7 regras acima cobrem as 9 células da matriz. Toda combinação de entradas ativa pelo menos uma regra, então o controlador sempre tem uma resposta.</p></div>
+<div class="done-row"><input type="checkbox" id="c6"><label for="c6">Regras escritas</label></div>
+</section>
+
+<section class="step" id="p7" data-step="7">
+<div class="step-head"><span class="step-num">PASSO 7</span><h2>Montar o sistema e simular um caso</h2></div>
+<p>Junte as regras em um <code>ControlSystem</code>, crie uma simulação, informe as entradas e chame <code>compute()</code>. Vamos testar o exemplo da aula: solo com 35% de umidade em um dia de 30 °C.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>sistema = ctrl.ControlSystem(regras)
+sim = ctrl.ControlSystemSimulation(sistema)
+
+sim.input['umidade'] = 35
+sim.input['temperatura'] = 30
+sim.compute()
+
+print(f"Tempo de rega: {sim.output['tempo']:.1f} min")
+
+<span class="c"># Mostra a área resultante e o centroide</span>
+tempo.view(sim=sim)
+plt.show()</code></pre></div>
+<div class="note expect"><b>Resultado esperado</b><p><code>Tempo de rega: 17.5 min</code> (pode variar uns décimos). No gráfico, a área preenchida mistura as curvas curto, médio, longo e muito longo, cortadas na força de cada regra.</p></div>
+<div class="done-row"><input type="checkbox" id="c7"><label for="c7">Primeira simulação feita</label></div>
+</section>
+
+<section class="step" id="p8" data-step="8">
+<div class="step-head"><span class="step-num">PASSO 8</span><h2>Testar vários cenários</h2></div>
+<p>Uma função auxiliar deixa os testes mais rápidos. Rode os cenários e confira se as respostas fazem sentido com a matriz.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>def tempo_de_rega(u, t):
+    sim.input['umidade'] = u
+    sim.input['temperatura'] = t
+    sim.compute()
+    return sim.output['tempo']
+
+cenarios = [(10, 35), (35, 30), (20, 10), (50, 25), (55, 38), (85, 40)]
+
+print("Umidade | Temp.  | Rega")
+for u, t in cenarios:
+    print(f"{u:>6}% | {t:>3} °C | {tempo_de_rega(u, t):5.1f} min")</code></pre></div>
+<div class="note expect"><b>Resultado esperado (aproximado)</b>
+<div class="tbl"><table>
+<tr><th class="r">Umidade</th><th class="r">Temperatura</th><th class="r">Rega</th><th>Leitura</th></tr>
+<tr><td class="r">10%</td><td class="r">35 °C</td><td class="r">27,8 min</td><td>Seco e quente: rega máxima</td></tr>
+<tr><td class="r">35%</td><td class="r">30 °C</td><td class="r">17,5 min</td><td>Exemplo da aula</td></tr>
+<tr><td class="r">20%</td><td class="r">10 °C</td><td class="r">15,0 min</td><td>Seco, mas frio: rega média</td></tr>
+<tr><td class="r">50%</td><td class="r">25 °C</td><td class="r">8,0 min</td><td>Úmido e ameno: rega curta</td></tr>
+<tr><td class="r">55%</td><td class="r">38 °C</td><td class="r">15,0 min</td><td>Úmido, mas muito quente</td></tr>
+<tr><td class="r">85%</td><td class="r">40 °C</td><td class="r">2,2 min</td><td>Encharcado: praticamente não rega</td></tr>
+</table></div>
+</div>
+<div class="note tip"><b>Por que 2,2 e não 0?</b><p>O centroide do conjunto “nenhum” fica um pouco acima de zero. Na prática, você pode tratar qualquer valor abaixo de 3 min como “não regar”.</p></div>
+<div class="done-row"><input type="checkbox" id="c8"><label for="c8">Cenários testados</label></div>
+</section>
+
+<section class="step" id="p9" data-step="9">
+<div class="step-head"><span class="step-num">PASSO 9</span><h2>Desenhar a superfície de controle</h2></div>
+<p>A superfície mostra a resposta do controlador para todas as combinações de entrada. É o “retrato” do sistema inteiro.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python</span><button class="copy" type="button">Copiar</button></div>
+<pre><code>u_vals = np.arange(0, 101, 5)
+t_vals = np.arange(0, 46, 2.5)
+U, T = np.meshgrid(u_vals, t_vals)
+Z = np.zeros(U.shape)
+
+for i in range(U.shape[0]):
+    for j in range(U.shape[1]):
+        Z[i, j] = tempo_de_rega(U[i, j], T[i, j])
+
+fig = plt.figure(figsize=(9, 6))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(U, T, Z, cmap='viridis', edgecolor='none')
+ax.set_xlabel('Umidade do solo (%)')
+ax.set_ylabel('Temperatura (°C)')
+ax.set_zlabel('Tempo de rega (min)')
+ax.set_title('Superfície de controle: irrigação fuzzy')
+plt.show()</code></pre></div>
+<div class="note expect"><b>Resultado esperado</b><p>Uma superfície suave e sem degraus. O ponto mais alto (cerca de 28 min) fica no canto seco e quente. A região acima de ~70% de umidade é plana e perto de zero.</p></div>
+<div class="done-row"><input type="checkbox" id="c9"><label for="c9">Superfície desenhada</label></div>
+</section>
+
+<section class="step" id="p10" data-step="10">
+<div class="step-head"><span class="step-num">PASSO 10</span><h2>Script completo e desafios</h2></div>
+<p>O código inteiro em um bloco, pronto para rodar de uma vez ou entregar como trabalho.</p>
+<div class="code"><div class="code-bar"><span class="code-lang">Python · irrigacao_fuzzy.py</span><button class="copy" type="button">Copiar tudo</button></div>
+<pre><code><span class="c"># Controlador fuzzy de irrigação (Mamdani)
+# Entradas: umidade do solo (%) e temperatura (°C)
+# Saída: tempo de rega (min)</span>
+import numpy as np
+import matplotlib.pyplot as plt
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl
+
+<span class="c"># 1. Variáveis</span>
+umidade = ctrl.Antecedent(np.arange(0, 101, 1), 'umidade')
+temperatura = ctrl.Antecedent(np.arange(0, 46, 1), 'temperatura')
+tempo = ctrl.Consequent(np.linspace(0, 30, 301), 'tempo', defuzzify_method='centroid')
+
+<span class="c"># 2. Funções de pertinência</span>
+umidade['seca']       = fuzz.trapmf(umidade.universe, [0, 0, 25, 40])
+umidade['umida']      = fuzz.trimf(umidade.universe, [30, 50, 70])
+umidade['encharcada'] = fuzz.trapmf(umidade.universe, [60, 75, 100, 100])
+
+temperatura['baixa'] = fuzz.trapmf(temperatura.universe, [0, 0, 15, 22])
+temperatura['media'] = fuzz.trimf(temperatura.universe, [15, 25, 35])
+temperatura['alta']  = fuzz.trapmf(temperatura.universe, [28, 35, 45, 45])
+
+tempo['nenhum']      = fuzz.trapmf(tempo.universe, [0, 0, 2, 6])
+tempo['curto']       = fuzz.trimf(tempo.universe, [3, 8, 13])
+tempo['medio']       = fuzz.trimf(tempo.universe, [10, 15, 20])
+tempo['longo']       = fuzz.trimf(tempo.universe, [17, 22, 27])
+tempo['muito_longo'] = fuzz.trapmf(tempo.universe, [24, 28, 30, 30])
+
+<span class="c"># 3. Regras (matriz 3 x 3)</span>
+regras = [
+    ctrl.Rule(umidade['seca'] &amp; temperatura['baixa'], tempo['medio']),
+    ctrl.Rule(umidade['seca'] &amp; temperatura['media'], tempo['longo']),
+    ctrl.Rule(umidade['seca'] &amp; temperatura['alta'],  tempo['muito_longo']),
+    ctrl.Rule(umidade['umida'] &amp; temperatura['baixa'], tempo['nenhum']),
+    ctrl.Rule(umidade['umida'] &amp; temperatura['media'], tempo['curto']),
+    ctrl.Rule(umidade['umida'] &amp; temperatura['alta'],  tempo['medio']),
+    ctrl.Rule(umidade['encharcada'], tempo['nenhum']),
+]
+
+<span class="c"># 4. Sistema e simulação</span>
+sistema = ctrl.ControlSystem(regras)
+sim = ctrl.ControlSystemSimulation(sistema)
+
+def tempo_de_rega(u, t):
+    sim.input['umidade'] = u
+    sim.input['temperatura'] = t
+    sim.compute()
+    return sim.output['tempo']
+
+<span class="c"># 5. Testes</span>
+for u, t in [(10, 35), (35, 30), (20, 10), (50, 25), (55, 38), (85, 40)]:
+    print(f"umidade {u:>3}% | temp {t:>2} °C -&gt; {tempo_de_rega(u, t):5.1f} min")
+
+<span class="c"># 6. Superfície de controle</span>
+U, T = np.meshgrid(np.arange(0, 101, 5), np.arange(0, 46, 2.5))
+Z = np.vectorize(tempo_de_rega)(U, T)
+
+ax = plt.figure(figsize=(9, 6)).add_subplot(111, projection='3d')
+ax.plot_surface(U, T, Z, cmap='viridis', edgecolor='none')
+ax.set_xlabel('Umidade do solo (%)')
+ax.set_ylabel('Temperatura (°C)')
+ax.set_zlabel('Tempo de rega (min)')
+plt.show()</code></pre></div>
+
+<h3>Desafios para ir além</h3>
+<ol>
+<li><b>Mude uma regra.</b> Faça o solo úmido em dia frio receber rega curta. Rode de novo o passo 9 e compare as duas superfícies.</li>
+<li><b>Troque a defuzzificação.</b> Use <code>defuzzify_method='bisector'</code> ou <code>'mom'</code> (média dos máximos) e veja como mudam os resultados do passo 8.</li>
+<li><b>Adicione uma terceira entrada.</b> Crie “chance de chuva” (0 a 100%) com os termos baixa e alta. Se a chance for alta, reduza a rega. Quantas regras a matriz completa passa a ter?</li>
+<li><b>Leve para o mundo real.</b> Descreva como ligar o controlador a um sensor capacitivo de umidade e a uma válvula solenoide em um ESP32 ou Raspberry Pi.</li>
+</ol>
+
+<div class="note warn"><b>Problemas comuns</b>
+<ul>
+<li><code>ModuleNotFoundError: skfuzzy</code>: o pacote se instala como <code>scikit-fuzzy</code>, mas se importa como <code>skfuzzy</code>.</li>
+<li>Erro mencionando <code>networkx</code>: rode <code>pip install networkx</code>.</li>
+<li><code>Crisp output cannot be calculated</code>: nenhuma regra disparou. Confira se as funções cobrem todo o universo e se a entrada está dentro da faixa.</li>
+<li>Gráfico 3D não aparece: em scripts locais, confira se há <code>plt.show()</code> no final.</li>
+</ul>
+</div>
+<div class="done-row"><input type="checkbox" id="c10"><label for="c10">Script completo rodando</label></div>
+</section>
+
+</main>
+</div>
+
+<script>
+(function () {
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'absolute';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function flash(btn, msg, good) {
+    var original = btn.getAttribute('data-label') || btn.textContent;
+    btn.setAttribute('data-label', original);
+    btn.textContent = msg;
+    if (good) btn.classList.add('ok');
+    setTimeout(function () { btn.textContent = original; btn.classList.remove('ok'); }, 1800);
+  }
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.closest('.code').querySelector('code').textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () { flash(btn, 'Copiado', true); })
+          .catch(function () { var ok = fallbackCopy(code); flash(btn, ok ? 'Copiado' : 'Selecione e copie', ok); });
+      } else {
+        var ok = fallbackCopy(code);
+        flash(btn, ok ? 'Copiado' : 'Selecione e copie', ok);
+      }
+    });
+  });
+
+  var KEY = 'lab-irrigacao-fuzzy-v1';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.done-row input'));
+  var links = document.querySelectorAll('#navlist a');
+  function update() {
+    var n = 0;
+    boxes.forEach(function (b, i) {
+      if (b.checked) n++;
+      if (links[i]) links[i].classList.toggle('done', b.checked);
+    });
+    document.getElementById('plabel').textContent = n + ' de ' + boxes.length + ' passos concluídos';
+    document.getElementById('pbar').style.width = (100 * n / boxes.length) + '%';
+  }
+  boxes.forEach(function (b) {
+    b.checked = !!saved[b.id];
+    b.addEventListener('change', function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      update();
+    });
+  });
+  update();
+})();
+</script>
+</body>
+</html>
